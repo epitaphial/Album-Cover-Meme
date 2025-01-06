@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Album Cover Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f9;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .grid-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      margin-bottom: 10px;
+    }
+    input {
+      margin: 5px 0;
+      padding: 5px;
+      width: 90%;
+    }
+    button {
+      margin-top: 5px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .preview {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .preview-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    .actions {
+      margin-top: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Album Cover Generator</h1>
+  <p>Fill in the album and artist details to generate the album covers.</p>
+
+  <input id="custom-title" type="text" placeholder="Enter your custom title for the final image" style="width: 100%; margin-bottom: 20px; padding: 10px;">
+
+  <div class="grid" id="grid">
+    <!-- Grid items will be dynamically added here -->
+  </div>
+
+  <div class="actions">
+    <button id="generate-image">Generate Final Image</button>
+  </div>
+
+  <h2>Preview</h2>
+  <div class="preview" id="preview">
+    <!-- Preview images will be added here -->
+  </div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const preview = document.getElementById('preview');
+    const generateImageButton = document.getElementById('generate-image');
+    const customTitleInput = document.getElementById('custom-title');
+
+    // Define the categories
+    const categories = [
+      '最喜欢的', '启蒙的', '水准最高的', '最动听的', '听最多次的',
+      '最前卫的', '最华丽的', '最心潮澎湃的', '最被低估的', '到现在还听不懂的',
+      '你喜欢但是大家不喜欢的', '大家喜欢但是你不太喜欢的', '歌词最棒的', '只选其中几首歌挑着听的', '为什么这张没火',
+      '最近常听的', '最有气质的', '最深沉的', '最想安利的', '来个新专辑吧（一年以内）'
+    ];
+
+    const previewItems = {}; // Track preview items to prevent duplicates
+
+    // Initialize the grid with inputs
+    categories.forEach((category, index) => {
+      const gridItem = document.createElement('div');
+      gridItem.className = 'grid-item';
+
+      const title = document.createElement('h4');
+      title.textContent = category;
+
+      const inputAlbum = document.createElement('input');
+      inputAlbum.placeholder = 'Album Name';
+
+      const inputArtist = document.createElement('input');
+      inputArtist.placeholder = 'Artist Name';
+
+      const img = document.createElement('img');
+      img.src = 'https://via.placeholder.com/100'; // Placeholder image
+      img.alt = 'Album Cover';
+
+      const generateButton = document.createElement('button');
+      generateButton.textContent = 'Generate Cover';
+
+      // Add event listener to the generate button
+      generateButton.addEventListener('click', () => {
+        const album = inputAlbum.value;
+        const artist = inputArtist.value;
+        if (album && artist) {
+          const apiUrl = `https://api.lrc.cx/api/v1/cover/album?title=${album}&album=${album}&artist=${artist}`;
+          fetch(apiUrl)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.blob();
+            })
+            .then(blob => {
+              const url = URL.createObjectURL(blob);
+              img.src = url;
+
+              // Add to preview if not already added
+              if (!previewItems[index]) {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+
+                const previewImg = document.createElement('img');
+                previewImg.src = url;
+                previewImg.alt = 'Preview Album Cover';
+
+                const previewTitle = document.createElement('p');
+                previewTitle.textContent = category;
+
+                previewItem.appendChild(previewImg);
+                previewItem.appendChild(previewTitle);
+                preview.appendChild(previewItem);
+
+                previewItems[index] = { img: url, title: category }; // Store image and title
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching album cover:', error);
+              img.src = 'https://via.placeholder.com/100'; // Reset to placeholder on error
+            });
+        } else {
+          alert('Please enter both album and artist names.');
+        }
+      });
+
+      gridItem.appendChild(title);
+      gridItem.appendChild(img);
+      gridItem.appendChild(inputAlbum);
+      gridItem.appendChild(inputArtist);
+      gridItem.appendChild(generateButton);
+      grid.appendChild(gridItem);
+    });
+
+    // Event listener for generating the final image
+    generateImageButton.addEventListener('click', () => {
+      if (Object.keys(previewItems).length === 0) {
+        alert('Please generate at least one cover before creating the final image.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const gridSize = 4; // 4x4 grid
+      const cellSize = 150; // Each cell 150x150
+      const titleHeight = 50; // Space for the title at the top
+
+      canvas.width = gridSize * cellSize;
+      canvas.height = gridSize * cellSize + titleHeight + 20; // Extra space for the custom title and labels
+
+      // Draw custom title
+      const customTitle = customTitleInput.value || 'My Album Covers';
+      ctx.fillStyle = 'black';
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(customTitle, canvas.width / 2, 30);
+
+      // Prepare to draw album covers and titles
+      const imagePromises = categories.map((category, index) => {
+        return new Promise((resolve) => {
+          const col = index % gridSize;
+          const row = Math.floor(index / gridSize);
+          const x = col * cellSize;
+          const y = row * cellSize + titleHeight;
+
+          const img = new Image();
+          img.src = previewItems[index]?.img || 'https://via.placeholder.com/150';
+          img.onload = () => {
+            ctx.drawImage(img, x, y, cellSize, cellSize);
+
+            // Draw category label below the image
+            ctx.fillStyle = 'black';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(category, x + cellSize / 2, y + cellSize + 20);
+
+            resolve(); // Resolve the promise when the image is drawn
+          };
+          img.onerror = () => {
+            resolve(); // Resolve even if there's an error loading the image
+          };
+        });
+      });
+
+      // Once all images are drawn, open the final image in a new tab
+      Promise.all(imagePromises).then(() => {
+        const dataURL = canvas.toDataURL('image/png');
+        const newTab = window.open();
+        newTab.document.write(`<img src="${dataURL}" />`);
+      });
+    });
+  </script>
+</body>
+</html>
