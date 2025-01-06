@@ -95,15 +95,14 @@
     const generateImageButton = document.getElementById('generate-image');
     const customTitleInput = document.getElementById('custom-title');
 
-    // Define the categories
     const categories = [
       '最喜欢的', '启蒙的', '水准最高的', '最动听的', '听最多次的',
       '最前卫的', '最华丽的', '最心潮澎湃的', '最被低估的', '到现在还听不懂的',
       '你喜欢但是大家不喜欢的', '大家喜欢但是你不太喜欢的', '歌词最棒的', '只选其中几首歌挑着听的', '为什么这张没火',
-      '最近常听的', '最有气质的', '最深沉的', '最想安利的', '来个新专辑吧（一年以内）'
+      '最近常听的'
     ];
 
-    const previewItems = {}; // Track preview items to prevent duplicates
+    const previewItems = {}; // Track preview items for updating dynamically
 
     // Initialize the grid with inputs
     categories.forEach((category, index) => {
@@ -128,44 +127,52 @@
 
       // Add event listener to the generate button
       generateButton.addEventListener('click', () => {
-        const album = inputAlbum.value;
-        const artist = inputArtist.value;
+        const album = inputAlbum.value.trim();
+        const artist = inputArtist.value.trim();
         if (album && artist) {
-          const apiUrl = `https://api.lrc.cx/api/v1/cover/album?title=${album}&album=${album}&artist=${artist}`;
-          fetch(apiUrl)
-            .then(response => {
-              if (!response.ok) {
-                throw new Error('Network response was not ok');
-              }
-              return response.blob();
-            })
-            .then(blob => {
-              const url = URL.createObjectURL(blob);
-              img.src = url;
+          const apiUrl = `https://api.lrc.cx/api/v1/cover/album?album=${album}&artist=${artist}`;
+fetch(apiUrl)
+  .then(response => {
+    if (!response.ok) throw new Error('Network response was not ok');
+    return response.blob();
+  })
+  .then(blob => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Data = reader.result; // 确保为 DataURL
+      img.src = base64Data;
 
-              // Add to preview if not already added
-              if (!previewItems[index]) {
-                const previewItem = document.createElement('div');
-                previewItem.className = 'preview-item';
+      // 更新预览
+      if (!previewItems[index]) {
+        const previewItem = document.createElement('div');
+        previewItem.className = 'preview-item';
 
-                const previewImg = document.createElement('img');
-                previewImg.src = url;
-                previewImg.alt = 'Preview Album Cover';
+        const previewImg = document.createElement('img');
+        previewImg.src = base64Data;
+        previewImg.alt = 'Preview Album Cover';
 
-                const previewTitle = document.createElement('p');
-                previewTitle.textContent = category;
+        const previewTitle = document.createElement('p');
+        previewTitle.textContent = category;
 
-                previewItem.appendChild(previewImg);
-                previewItem.appendChild(previewTitle);
-                preview.appendChild(previewItem);
+        previewItem.appendChild(previewImg);
+        previewItem.appendChild(previewTitle);
+        preview.appendChild(previewItem);
 
-                previewItems[index] = { img: url, title: category }; // Store image and title
-              }
-            })
-            .catch(error => {
-              console.error('Error fetching album cover:', error);
-              img.src = 'https://via.placeholder.com/100'; // Reset to placeholder on error
-            });
+        previewItems[index] = { img: base64Data, title: category };
+      } else {
+        const previewImg = preview.querySelectorAll('img')[index];
+        previewImg.src = base64Data;
+        previewItems[index].img = base64Data;
+      }
+    };
+    reader.readAsDataURL(blob); // 读取为 DataURL
+  })
+  .catch(error => {
+    console.error('Error fetching album cover:', error);
+    img.src = 'https://via.placeholder.com/100'; // 占位符
+  });
+
+
         } else {
           alert('Please enter both album and artist names.');
         }
@@ -179,7 +186,6 @@
       grid.appendChild(gridItem);
     });
 
-    // Event listener for generating the final image
     generateImageButton.addEventListener('click', () => {
       if (Object.keys(previewItems).length === 0) {
         alert('Please generate at least one cover before creating the final image.');
@@ -188,48 +194,43 @@
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const gridSize = 4; // 4x4 grid
-      const cellSize = 150; // Each cell 150x150
-      const titleHeight = 50; // Space for the title at the top
+      const gridSize = 4;
+      const cellSize = 150;
+      const labelHeight = 30;
+      const titleHeight = 50;
 
       canvas.width = gridSize * cellSize;
-      canvas.height = gridSize * cellSize + titleHeight + 20; // Extra space for the custom title and labels
+      canvas.height = Math.ceil(categories.length / gridSize) * (cellSize + labelHeight) + titleHeight;
 
-      // Draw custom title
-      const customTitle = customTitleInput.value || 'My Album Covers';
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.fillStyle = 'black';
       ctx.font = '20px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(customTitle, canvas.width / 2, 30);
+      ctx.fillText(customTitleInput.value || 'My Album Covers', canvas.width / 2, 30);
 
-      // Prepare to draw album covers and titles
       const imagePromises = categories.map((category, index) => {
         return new Promise((resolve) => {
           const col = index % gridSize;
           const row = Math.floor(index / gridSize);
           const x = col * cellSize;
-          const y = row * cellSize + titleHeight;
+          const y = row * (cellSize + labelHeight) + titleHeight;
 
           const img = new Image();
           img.src = previewItems[index]?.img || 'https://via.placeholder.com/150';
           img.onload = () => {
             ctx.drawImage(img, x, y, cellSize, cellSize);
-
-            // Draw category label below the image
             ctx.fillStyle = 'black';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(category, x + cellSize / 2, y + cellSize + 20);
-
-            resolve(); // Resolve the promise when the image is drawn
+            ctx.fillText(category, x + cellSize / 2, y + cellSize + labelHeight / 2);
+            resolve();
           };
-          img.onerror = () => {
-            resolve(); // Resolve even if there's an error loading the image
-          };
+          img.onerror = resolve;
         });
       });
 
-      // Once all images are drawn, open the final image in a new tab
       Promise.all(imagePromises).then(() => {
         const dataURL = canvas.toDataURL('image/png');
         const newTab = window.open();
